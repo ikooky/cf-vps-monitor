@@ -1463,12 +1463,18 @@ start_service() {
     # 尝试使用systemd
     if command_exists systemctl; then
         print_message "$BLUE" "使用systemd启动服务..."
-        if systemctl start cf-vps-monitor.service; then
-            systemctl enable cf-vps-monitor.service
-            print_message "$GREEN" "监控服务已启动 (systemd)"
-            return 0
+        # 先启用服务
+        if systemctl enable cf-vps-monitor.service; then
+            print_message "$GREEN" "服务已启用"
+            # 然后启动服务
+            if systemctl start cf-vps-monitor.service; then
+                print_message "$GREEN" "监控服务已启动 (systemd)"
+                return 0
+            else
+                print_message "$YELLOW" "systemd启动失败，尝试传统方式"
+            fi
         else
-            print_message "$YELLOW" "systemd启动失败，尝试传统方式"
+            print_message "$YELLOW" "systemd启用失败，尝试传统方式"
         fi
     fi
 
