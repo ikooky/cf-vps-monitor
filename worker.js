@@ -50,7 +50,10 @@ function validateInput(input, type, maxLength = 255) {
   }
 
   const validators = {
-    serverName: () => /^[\w\s\u4e00-\u9fa5-]{1,100}$/.test(input.trim()),
+    serverName: () => {
+      const trimmed = input.trim();
+      return trimmed.length >= 1 && trimmed.length <= 100;
+    },
     description: () => input.trim().length <= 500,
     direction: () => ['up', 'down'].includes(input),
     url: () => {
@@ -65,6 +68,7 @@ function validateInput(input, type, maxLength = 255) {
 
   return validators[type] ? validators[type]() : input.trim().length > 0;
 }
+
 
 // ==================== 密码处理 ====================
 
@@ -3067,10 +3071,10 @@ function getIndexHtml() {
             /* font-weight: bold; is handled by inline style in JS */
         }
 
-        /* Center the "24h记录" (site table) and "上传" (server table) headers and their data cells */
+                  /* Center the "24h记录" (site table) and "上传" (server table) headers and their data cells */
         .table > thead > tr > th:nth-child(6), /* Targets 6th header in both tables */
         #siteStatusTableBody tr > td:nth-child(6), /* Targets 6th data cell in site status table */
-        #serverTableBody tr > td:nth-child(6) { /* Targets 6th data cell in server status table */
+        #serverTableBody tr > td:nth-child(7) { /* Targets 7th data cell in server status table (now "上传" after adding 序号) */
             text-align: center;
         }
 
@@ -3254,6 +3258,7 @@ function getIndexHtml() {
             <table class="table table-striped table-hover align-middle">
                 <thead>
                     <tr>
+                        <th>序号</th>
                         <th>名称</th>
                         <th>状态</th>
                         <th>CPU</th>
@@ -3269,7 +3274,7 @@ function getIndexHtml() {
                 </thead>
                 <tbody id="serverTableBody">
                     <tr>
-                        <td colspan="11" class="text-center">加载中...</td>
+                        <td colspan="12" class="text-center">加载中...</td>
                     </tr>
                 </tbody>
             </table>
@@ -3307,7 +3312,7 @@ function getIndexHtml() {
     <!-- Server Detailed row template (hidden by default) -->
     <template id="serverDetailsTemplate">
         <tr class="server-details-row d-none">
-            <td colspan="11">
+            <td colspan="12">
                 <div class="server-details-content">
                     <!-- Detailed metrics will be populated here by JavaScript -->
                 </div>
@@ -3392,7 +3397,7 @@ function getLoginHtml() {
         /* Center the "24h记录" (site table) and "上传" (server table) headers and their data cells */
         .table > thead > tr > th:nth-child(6), /* Targets 6th header in both tables */
         #siteStatusTableBody tr > td:nth-child(6), /* Targets 6th data cell in site status table */
-        #serverTableBody tr > td:nth-child(6) { /* Targets 6th data cell in server status table */
+                  #serverTableBody tr > td:nth-child(7) { /* Targets 7th data cell in server status table (now "上传" after adding 序号) */
             text-align: center;
         }
 
@@ -3658,6 +3663,7 @@ function getAdminHtml() {
                     <table class="table table-striped table-hover">
                         <thead>
                             <tr>
+                                <th>序号</th>
                                 <th>排序</th>
                                 <th>ID</th>
                                 <th>名称</th>
@@ -3672,7 +3678,7 @@ function getAdminHtml() {
                         </thead>
                         <tbody id="serverTableBody">
                             <tr>
-                                <td colspan="10" class="text-center">加载中...</td>
+                                <td colspan="11" class="text-center">加载中...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -4504,7 +4510,7 @@ async function loadAllServerStatuses() {
 
         if (servers.length === 0) {
             noServersAlert.classList.remove('d-none');
-            serverTableBody.innerHTML = '<tr><td colspan="11" class="text-center">No server data available. Please log in to the admin panel to add servers.</td></tr>';
+            serverTableBody.innerHTML = '<tr><td colspan="12" class="text-center">No server data available. Please log in to the admin panel to add servers.</td></tr>';
             // Remove any existing detail rows if the server list becomes empty
             removeAllDetailRows();
             return;
@@ -4533,7 +4539,7 @@ async function loadAllServerStatuses() {
     } catch (error) {
         console.error('Error loading server statuses:', error);
         const serverTableBody = document.getElementById('serverTableBody');
-        serverTableBody.innerHTML = '<tr><td colspan="11" class="text-center text-danger">Failed to load server data. Please refresh the page.</td></tr>';
+        serverTableBody.innerHTML = '<tr><td colspan="12" class="text-center text-danger">Failed to load server data. Please refresh the page.</td></tr>';
          removeAllDetailRows();
     }
 }
@@ -4586,9 +4592,9 @@ function renderServerTable(allStatuses) {
         }
     });
 
-    tableBody.innerHTML = ''; // Clear existing rows
+          tableBody.innerHTML = ''; // Clear existing rows
 
-    allStatuses.forEach(data => {
+    allStatuses.forEach((data, index) => {
         const serverId = data.server.id;
         const serverName = data.server.name;
         const metrics = data.metrics;
@@ -4634,6 +4640,7 @@ function renderServerTable(allStatuses) {
         mainRow.classList.add('server-row');
         mainRow.setAttribute('data-server-id', serverId);
         mainRow.innerHTML = \`
+            <td>\${index + 1}</td>
             <td>\${serverName}</td>
             <td>\${statusBadge}</td>
             <td>\${cpuHtml}</td>
@@ -5394,7 +5401,7 @@ function renderServerTable(servers) {
 
     if (servers.length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="9" class="text-center">暂无服务器数据</td>'; // Updated colspan
+        row.innerHTML = '<td colspan="10" class="text-center">暂无服务器数据</td>'; // Updated colspan
         tableBody.appendChild(row);
         return;
     }
@@ -5425,6 +5432,7 @@ function renderServerTable(servers) {
         }
 
         row.innerHTML =
+            '<td>' + (index + 1) + '</td>' +
             '<td>' +
                 '<div class="btn-group">' +
                     '<i class="bi bi-grip-vertical text-muted me-2" style="cursor: grab;" title="拖拽排序"></i>' +
@@ -5659,7 +5667,7 @@ async function copyVpsInstallScript(serverId, serverName, buttonElement) {
         const workerUrl = window.location.origin;
 
         // 使用GitHub上的脚本地址
-        const baseScriptUrl = "https://raw.githubusercontent.com/kadidalax/cf-vps-monitor/main/cf-vps-monitor.sh";
+        const baseScriptUrl = "https://raw.githubusercontent.com/ikooky/cf-vps-monitor/main/cf-vps-monitor.sh";
         // 生成安装命令（让脚本自动从服务器获取上报间隔）
         const scriptCommand = 'wget ' + baseScriptUrl + ' -O cf-vps-monitor.sh && chmod +x cf-vps-monitor.sh && ./cf-vps-monitor.sh -i -k ' + apiKey + ' -s ' + serverId + ' -u ' + workerUrl;
 
