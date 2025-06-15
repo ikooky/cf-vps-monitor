@@ -24,7 +24,7 @@ SCRIPT_DIR="$HOME/.cf-vps-monitor"
 CONFIG_FILE="$SCRIPT_DIR/config"
 LOG_FILE="$SCRIPT_DIR/monitor.log"
 PID_FILE="$SCRIPT_DIR/monitor.pid"
-SERVICE_FILE="$SCRIPT_DIR/monitor-service.sh"
+SERVICE_FILE="$SCRIPT_DIR/vps-monitor-service.sh"
 SYSTEMD_SERVICE_FILE="$HOME/.config/systemd/user/cf-vps-monitor.service"
 
 # 默认配置
