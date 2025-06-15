@@ -831,7 +831,7 @@ async function handleApiRequest(request, env, ctx) {
 
       // 获取服务器信息
       const serverData = await env.DB.prepare(
-        'SELECT id, name, description FROM servers WHERE id = ?'
+        'SELECT id, name FROM servers WHERE id = ?'
       ).bind(serverId).first();
 
       if (!serverData) {
