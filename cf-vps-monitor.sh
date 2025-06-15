@@ -2,7 +2,7 @@
 
 # cf-vps-monitor - Cloudflare Worker VPS监控脚本
 # 版本: 3.0 - 匹配最新worker.js
-# 支持所有常见Linux系统，无需root权限
+# 支持所有常见Linux系统
 
 set -euo pipefail
 
@@ -25,7 +25,6 @@ CONFIG_FILE="$SCRIPT_DIR/config"
 LOG_FILE="$SCRIPT_DIR/monitor.log"
 PID_FILE="$SCRIPT_DIR/monitor.pid"
 SERVICE_FILE="$SCRIPT_DIR/vps-monitor-service.sh"
-SYSTEMD_SERVICE_FILE="$HOME/.config/systemd/user/cf-vps-monitor.service"
 
 # 默认配置
 DEFAULT_INTERVAL=60
@@ -1409,31 +1408,23 @@ EOF
     print_message "$GREEN" "监控服务脚本创建完成: $SERVICE_FILE"
 }
 
-# 创建systemd用户服务
+# 创建systemd服务
 create_systemd_service() {
     if ! command_exists systemctl; then
         print_message "$YELLOW" "systemd不可用，将使用传统方式运行服务"
         return 1
     fi
 
-    # 检查是否可以使用systemd用户服务
-    if ! systemctl --user status >/dev/null 2>&1; then
-        print_message "$YELLOW" "systemd用户服务不可用，将使用传统方式运行服务"
+    # 检查是否有root权限
+    if [[ $EUID -ne 0 ]]; then
+        print_message "$YELLOW" "需要root权限来创建系统级服务，将使用传统方式运行服务"
         return 1
     fi
 
-    # 确保systemd服务文件目录存在
-    local systemd_dir=$(dirname "$SYSTEMD_SERVICE_FILE")
-    if [[ ! -d "$systemd_dir" ]]; then
-        if ! mkdir -p "$systemd_dir" 2>/dev/null; then
-            print_message "$YELLOW" "无法创建systemd目录，将使用传统方式运行服务"
-            return 1
-        fi
-    fi
-
-    cat > "$SYSTEMD_SERVICE_FILE" << EOF
+    # 创建系统级服务文件
+    cat > "/etc/systemd/system/cf-vps-monitor.service" << EOF
 [Unit]
-Description=cf-vps-monitor Service
+Description=CF VPS Monitor Service
 After=network.target
 
 [Service]
@@ -1441,22 +1432,19 @@ Type=simple
 ExecStart=$SERVICE_FILE
 Restart=always
 RestartSec=10
-User=$USER
-WorkingDirectory=$SCRIPT_DIR
-Environment=HOME=$HOME
-Environment=PATH=$PATH
+User=root
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 EOF
 
     # 重新加载systemd配置
-    if ! systemctl --user daemon-reload 2>/dev/null; then
+    if ! systemctl daemon-reload 2>/dev/null; then
         print_message "$YELLOW" "无法重新加载systemd配置，将使用传统方式运行服务"
         return 1
     fi
 
-    print_message "$GREEN" "systemd用户服务创建完成: $SYSTEMD_SERVICE_FILE"
+    print_message "$GREEN" "systemd服务创建完成: /etc/systemd/system/cf-vps-monitor.service"
     return 0
 }
 
@@ -1473,10 +1461,10 @@ start_service() {
     fi
 
     # 尝试使用systemd
-    if [[ -f "$SYSTEMD_SERVICE_FILE" ]] && command_exists systemctl; then
+    if command_exists systemctl; then
         print_message "$BLUE" "使用systemd启动服务..."
-        if systemctl --user start cf-vps-monitor.service; then
-            systemctl --user enable cf-vps-monitor.service
+        if systemctl start cf-vps-monitor.service; then
+            systemctl enable cf-vps-monitor.service
             print_message "$GREEN" "监控服务已启动 (systemd)"
             return 0
         else
@@ -1523,10 +1511,10 @@ stop_service() {
     local stopped=false
 
     # 尝试使用systemd停止
-    if [[ -f "$SYSTEMD_SERVICE_FILE" ]] && command_exists systemctl; then
-        if systemctl --user is-active cf-vps-monitor.service >/dev/null 2>&1; then
-            systemctl --user stop cf-vps-monitor.service
-            systemctl --user disable cf-vps-monitor.service
+    if command_exists systemctl; then
+        if systemctl is-active cf-vps-monitor.service >/dev/null 2>&1; then
+            systemctl stop cf-vps-monitor.service
+            systemctl disable cf-vps-monitor.service
             stopped=true
             print_message "$GREEN" "监控服务已停止 (systemd)"
         fi
@@ -1559,10 +1547,10 @@ check_service_status() {
     local running=false
 
     # 检查systemd状态
-    if [[ -f "$SYSTEMD_SERVICE_FILE" ]] && command_exists systemctl; then
-        if systemctl --user is-active vps-monitor.service >/dev/null 2>&1; then
+    if command_exists systemctl; then
+        if systemctl is-active cf-vps-monitor.service >/dev/null 2>&1; then
             print_message "$GREEN" "✓ systemd服务运行中"
-            systemctl --user status vps-monitor.service --no-pager -l
+            systemctl status cf-vps-monitor.service --no-pager -l
             running=true
         else
             print_message "$YELLOW" "✗ systemd服务未运行"
@@ -1745,7 +1733,7 @@ install_monitor() {
         echo "  日志文件: $LOG_FILE"
         echo "  服务脚本: $SERVICE_FILE"
         if [[ "$systemd_available" == "true" ]]; then
-            echo "  systemd服务: $SYSTEMD_SERVICE_FILE"
+            echo "  systemd服务: /etc/systemd/system/cf-vps-monitor.service"
             print_message "$GREEN" "  启动方式: systemd用户服务"
         else
             print_message "$GREEN" "  启动方式: 传统后台进程"
@@ -1775,11 +1763,11 @@ uninstall_monitor() {
     stop_service
 
     # 删除systemd服务
-    if [[ -f "$SYSTEMD_SERVICE_FILE" ]] && command_exists systemctl; then
+    if [[ -f "/etc/systemd/system/cf-vps-monitor.service" ]] && command_exists systemctl; then
         print_message "$BLUE" "删除systemd服务..."
-        systemctl --user disable vps-monitor.service 2>/dev/null || true
-        rm -f "$SYSTEMD_SERVICE_FILE"
-        systemctl --user daemon-reload 2>/dev/null || true
+        systemctl disable cf-vps-monitor.service 2>/dev/null || true
+        rm -f "/etc/systemd/system/cf-vps-monitor.service"
+        systemctl daemon-reload 2>/dev/null || true
     fi
 
     # 删除所有文件
@@ -2054,7 +2042,7 @@ one_click_install() {
         echo "  日志文件: $LOG_FILE"
         echo "  服务脚本: $SERVICE_FILE"
         if [[ "$systemd_available" == "true" ]]; then
-            echo "  systemd服务: $SYSTEMD_SERVICE_FILE"
+            echo "  systemd服务: /etc/systemd/system/cf-vps-monitor.service"
             print_message "$GREEN" "  启动方式: systemd用户服务"
         else
             print_message "$GREEN" "  启动方式: 传统后台进程"
