@@ -202,6 +202,40 @@ function getClientIP(request) {
          '127.0.0.1';
 }
 
+// IP地址检测和脱敏函数
+function isIPAddress(str) {
+  if (!str || typeof str !== 'string') return false;
+  
+  const trimmed = str.trim();
+  // IPv4 正则表达式
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  
+  if (ipv4Regex.test(trimmed)) {
+    // 验证IPv4每段是否在0-255范围内
+    const parts = trimmed.split('.');
+    return parts.every(part => {
+      const num = parseInt(part, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+  
+  return false;
+}
+
+function maskIPAddress(ip) {
+  if (!ip || typeof ip !== 'string') return ip;
+  
+  const trimmedIP = ip.trim();
+  
+  // 检查是否为IPv4地址
+  if (isIPAddress(trimmedIP)) {
+    const parts = trimmedIP.split('.');
+    return `${parts[0]}.${parts[1]}.***.*`;
+  }
+  
+  return ip; // 如果不是IP地址，返回原值
+}
+
 // ==================== 数据库结构 ====================
 
 const D1_SCHEMAS = {
@@ -738,11 +772,17 @@ async function handleApiRequest(request, env, ctx) {
   // 获取服务器列表（公开）
   if (path === '/api/servers' && method === 'GET') {
     try {
-      const { results } = await env.DB.prepare(
+              const { results } = await env.DB.prepare(
         'SELECT id, name, description FROM servers ORDER BY sort_order ASC NULLS LAST, name ASC'
       ).all();
 
-      return new Response(JSON.stringify({ servers: results || [] }), {
+      // 对服务器名称进行IP脱敏处理
+      const maskedResults = (results || []).map(server => ({
+        ...server,
+        name: maskIPAddress(server.name)
+      }));
+
+      return new Response(JSON.stringify({ servers: maskedResults }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     } catch (error) {
@@ -826,8 +866,14 @@ async function handleApiRequest(request, env, ctx) {
         }
       }
 
+      // 对服务器名称进行IP脱敏处理
+      const maskedServerData = {
+        ...serverData,
+        name: maskIPAddress(serverData.name)
+      };
+
       return new Response(JSON.stringify({
-        server: serverData,
+        server: maskedServerData,
         metrics: metricsData
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
